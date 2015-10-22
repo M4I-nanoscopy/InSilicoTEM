@@ -1,6 +1,6 @@
 %%
 
-dirMTF = '/mnt/ssd/Delei/Matlab/InSilicoTEM_V0.91/InSilicoTEM/MTF/';
+dirMTF = [pwd, filesep];
 f2mtf1d = myload([dirMTF,'MTF.mat']);
 f2dqe1d = myload([dirMTF,'DQE.mat']);
 figure(1)
@@ -37,7 +37,7 @@ subplot(121), plot(mtf1d128,'-r');
 subplot(122), plot(dqe1d128,'-b');
 
 %%
-dirSave = '/mnt/ssd/Delei/Matlab/InSilicoTEM_V0.91/InSilicoTEM_V0.93/code/MTFs/';
+dirSave = dirMTF;
 save([dirSave,'MTF_FalconII_200.mat'],'mtf');
 save([dirSave,'DQE_FalconII_200.mat'],'dqe');
 %%
