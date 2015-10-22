@@ -9,8 +9,8 @@
 clc; clear; close all;
 
 % ----------------------- General processing parameters (proc field)
-nb = 256; % the size of field viewdisp
-params.proc.N               = 2840; %2328; % 2620 the effective bin at tilt angle 80 is 256
+nb = 256; % FOV of final projection size
+params.proc.N               = 1600; % maximum tilt angle 72 degree, nb 256 pixels, 240 pixel
 params.proc.partNum         = 1;   % Number of particles. 
 params.proc.geom            = 1;  % Specify orientation and translation of particles in 'PartList.m' (=1) or generate them randomly (=0) 
 params.proc.cores           = 4;  % the numer of workers going to beused for parllel calculation. If you have a very large volume sample (ex.  
@@ -68,7 +68,7 @@ params.cam.DQEflag          = 1; % Flag for dqe (=0 means NTF = MTF)
 % ---------------------- Display what? (disp field)
 params.disp.generateWhat   = 'im'; % Options: 'im', 'exitw', 'imNoiseless'
 params.disp.ctf            = 0; % Flag to display CTF
-params.disp.mtfdqe         = 1; % Flag to display MTF and DQE
+params.disp.mtfdqe         = 0; % Flag to display MTF and DQE
 %----------------------- Delei: parameter
 params.particle.rotate = 0; % rotage particle before packing in the full model
 
@@ -76,23 +76,25 @@ params.particle.rotate = 0; % rotage particle before packing in the full model
 % ---------------------- Parse parameters
 params2 = parsePar(params);
 
-tic;
+
 %% ---------------------- Generate and/or load 3D potential of a particle
 [PartPot, params2] = loadSamples(params2);
 
-fprintf('*******  Sample Load: %4.2f min\n', toc/60);
 %% ---------------------- Padding and placing the particles within the volume
-tic
+
 [InputVol, PosOrient] = generateFullVolume(PartPot,params2);
-fprintf('*******  Generate Volume: %4.2f min\n', toc/60); 
 
 InputVol = InputVol(:,:,1:end); % 
 
-%% {
-% ---------------------- Image simulation
-tic
-[imStructOut] = simTEM(InputVol, params2);
-fprintf('******* simTEM: %4.2f min\n', toc/60); 
+%% --------------------- Image simulation
+% [imStructOut] = simTEM(InputVol, params2);
+
+params.acquis.tilt           = [-72:72]/180*pi;  % Tilt geometry  
+params.acquis.dose_on_sample = 1; %[40]/length(params.acquis.tilt);
+
+psi_exit = DsimTEM1_exit(InputVol,params2);
+nl_ts    = DsimTEM2_ctf(psi_exit,params2);
+proj     = DsimTEM3_record(nl_ts,params2);
 
 %%  crop the image size to fit the size of FOV
 nb = nb;
