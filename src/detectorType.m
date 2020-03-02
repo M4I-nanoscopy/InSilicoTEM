@@ -1,4 +1,4 @@
-function [mtf, dqe, cf, readn, darkn] = detectorType(params)
+function [mtf, dqe, cf, readn, darkn] = detectorType(params,convfact)
 %detectorType: Reads in the paratemres of already characterized detectors
 % SYNOPSIS:
 % [mtf, dqe, cf, readn, darkn] = detectorType(params)
@@ -35,7 +35,13 @@ if (strcmp(cam,'Eagle4k') && Voltage/1000~=120)
 elseif (strcmp(cam,'US4000') && (Voltage/1000~=120 && Voltage/1000~=200))
     s1=sprintf(s0, Voltage/1000, 120, 200);
     warning(s1);  
-elseif strcmp(cam,'Falcon') && (Voltage/1000~=200 && Voltage/1000~=300)
+elseif strcmp(cam,'FalconI') && (Voltage/1000~=200 && Voltage/1000~=300)
+    s1=sprintf(s0, Voltage/1000, 200, 300);
+    warning(s1);
+elseif strcmp(cam,'FalconIII_Linear') && (Voltage/1000~=200 && Voltage/1000~=300)
+    s1=sprintf(s0, Voltage/1000, 200, 300);
+    warning(s1);
+elseif strcmp(cam,'FalconIII_EC') && (Voltage/1000~=200 && Voltage/1000~=300)
     s1=sprintf(s0, Voltage/1000, 200, 300);
     warning(s1);
 elseif strcmp(cam,'US1000GIF') && (Voltage/1000~=80 && Voltage/1000~=200 && Voltage/1000~=300)
@@ -99,7 +105,7 @@ elseif strcmp(cam,'US1000GIF') % Gatan US1000. Data available for 80, 200 and 30
             end
             readn  = 3;
             darkn  = 0.11; 
-       else
+       else19
             cf     = (sqrt(80)*28*sqrt(200)*15*sqrt(300)*6.6)^(1/3)/sqrt(Voltage/1000); 
             bz     = load([camdir filesep 'MTF_US1000GIF_080']);
             mtf80  = bz.mtf;
@@ -176,7 +182,7 @@ elseif strcmp(cam,'US4000')
             bz       = load([camdir filesep 'MTF_US4000_200']);
             mtf      = bz.mtf;
             if exist([camdir filesep 'DQE_US4000_200.mat'])
-                npsz    = load([camdir filesep 'DQE_US4000_200']);
+                npsz   = load([camdir filesep 'DQE_US4000_200']);
                 dqe    = npsz.dqe;
             else
                 warning('DQE not available. Use only MTF.')
@@ -205,6 +211,48 @@ elseif strcmp(cam,'US4000')
             readn    = 3;
             darkn    = 0.11; 
        end  
+elseif strcmp(cam,'FalconIII_Linear')
+       if Voltage  == 200e3
+            cf      = 19;
+            bz      = load([camdir filesep 'MTF_FalconIII_Linear_200']);
+            mtf     = bz.mt19f;
+            npsz    = load([camdir filesep 'DQE_FalconIII_Linear_200']);
+            dqe     = npsz.dqe;
+            readn   = 3;
+            darkn   = 1.6;
+       elseif Voltage == 300e3
+            cf      = 19;
+            bz      = load([camdir filesep 'MTF_FalconIII_Linear_300']);
+            mtf     = bz.mtf;
+            npsz    = load([camdir filesep 'DQE_FalconIII_Linear_300']);
+            dqe     = npsz.dqe;
+            readn   = 3;
+            darkn   = 1.6;
+       end
+       
+elseif strcmp(cam,'FalconIII_EC')
+       if Voltage  == 200e3
+            cf      = convfact; % Conversion factor ?
+            bz      = load([camdir filesep 'MTF_FalconIII_EC_200']);
+            mtf     = bz.mtf;
+            if  exist([camdir filesep 'DQE_FalconIII_EC_200.mat'])
+                npsz   = load([camdir filesep 'DQE_FalconIII_EC_200']);
+                dqe   = npsz.dqe;
+            else
+                warning('DQE not available. Use only MTF.')
+                dqe = mtf^2;
+            end
+            readn   = 3;
+            darkn   = 1.6; 
+       elseif Voltage == 300e3
+            cf      = convfact; % Conversion factor
+            bz      = load([camdir filesep 'MTF_FalconIII_EC_300']);
+            mtf     = bz.mtf;
+            npsz    = load([camdir filesep 'DQE_FalconIII_EC_300']);
+            dqe     = npsz.dqe;
+            readn   = 3;
+            darkn   = 1.6;
+       end
        
 elseif strcmp(cam,'FalconI')    
        if  Voltage == 200e3 
@@ -212,7 +260,7 @@ elseif strcmp(cam,'FalconI')
             bz      = load([camdir filesep 'MTF_Falcon_200']);
             mtf     = bz.mtf;
             npsz    = load([camdir filesep 'DQE_Falcon_200']);
-            dqe    = npsz.dqe;
+            dqe     = npsz.dqe;
             readn   = 3;
             darkn   = 0.11; 
       elseif Voltage == 300e3 
@@ -244,16 +292,6 @@ elseif strcmp(cam,'FalconI')
             readn    = 3;
             darkn    = 0.11; 
        end   
-elseif strcmp(cam, 'FalconII')
-    if Voltage == 200e3
-        cf = 129.05; 
-        mtf = struct2array(load([camdir filesep 'MTF_FalconII_200.mat']));
-        dqe = struct2array(load([camdir filesep 'DQE_FalconII_200.mat']));
-        readn = 1.43;
-        darkn = 0.11;  % this is not used 
-    else
-        error('I cannot use Voltage other than 200 kV');
-    end
 elseif strcmp(cam,'custom') 
     warning('Parameters of this camera are not known. Please characterize it with the supplementary software or simulate it as EMG (exponentially modified Gaussian) by setting the flag "params.cam.GenMTFasEMG" ');
     if params.cam.GenMTFasEMG
@@ -273,7 +311,9 @@ else
 end
     % Avoid possible NaN
             mtf(mtf==0) = 2;
+%             dipshow(mtf)
             minmtf=min(mtf);
+%             dipshow(minmtf)
             mtf= mtf*(mtf~=2)+dip_image(minmtf*double((mtf==2)));
             dqe(dqe==0) = 2;
             mindqe=min(dqe);

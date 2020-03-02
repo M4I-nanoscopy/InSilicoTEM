@@ -30,6 +30,8 @@ P = exp(-1i*pi*lambda*(q_m.^2)*dzprop); % Fresnel propagator
 % MULTISLICE
 psi_multislice = newim(Nm,Nm,'dcomplex')+1;
 for ii = 1:n
+    
     psi_multislice = ift(ft(psi_multislice*squeeze(psi_t(:,:,ii-1)))*P);
     %psi_multislice = ift(ft(psi_multislice*squeeze(psi_t(:,:,ii-1)))*P(dzprop));
+    
 end

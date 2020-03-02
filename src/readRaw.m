@@ -2,7 +2,8 @@
 % this is incorporated in the function "generateFullVolume"
 
 pdbin   = '1SA0';
-dirPart = [pwd filesep 'Particles']; 
+dir0 = params2.proc.rawdir;
+dirPart = [dir0 filesep 'Particles']; 
         fileName = '1SA0_a0001_Nx40_Ny45_Nz24_Alp222.4_Bet127.7_Gam65.9_MF0.0_VoxSize4.00A.raw';
         [tokens matchstring] = regexp(fileName,'a(\d+)_Nx(\d+)_Ny(\d+)_Nz(\d+)_Alp(\d+\.?\d*)_Bet(\d+\.?\d*)_Gam(\d+\.?\d*)_MF(\d+\.?\d*)_VoxSize(\d+\.?\d*)A','tokens','match');
         tt=str2num(tokens{1}{1}); 

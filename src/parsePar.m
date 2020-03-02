@@ -1,4 +1,4 @@
-function params2 = parsePar(params)
+function params2 = parsePar(params,cft)
 %parsePar Parses input parameters.
 % SYNOPSIS:
 % [params2] = parsePar(params)
@@ -38,7 +38,7 @@ if  strcmp(params.cam.type,'custom')
     end
 end
 % load or generate mtf and dqe
-[mtf, dqe, cf, readn, darkn] = detectorType(params);
+[mtf, dqe, cf, readn, darkn] = detectorType(params,cft);
     params2.cam.mtf   = mtf;
     params2.cam.dqe   = dqe;
     params2.cam.cf    = cf; 

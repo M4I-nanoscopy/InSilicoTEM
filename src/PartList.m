@@ -21,18 +21,16 @@ n = params2.proc.partNum;
 % matrix with translations and rotations of particles
 % the number of rows correspond to the number of particles
 % the columns represent translation in x y z and three Euler rotations 
-% p  =  [   0   0    0      0   0   0;
-%           -50   50   0      0  90   0;
-%           50   -50    0     90   0   0;
-%           50    50    0      0   0   90;
-%         -140    0    0     0  90   0;
-%           0   140    0    90   0   0;
-%           0    0    0     0    0   0;
-%          20   40    0     0   90   0;
-%          20  -40    0    90    0   0;
-%          40   20    0     0    0   0];
-   p = [0    0    0     89.69    97.15  90.98 ]; % rcsb.org website    
-     
+p  =  [   0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0;
+          0   0    0      0   0   0];
      
  if size(p,1)<n
     warning(['At the moment the orientations/positions of only ' sprintf('%4d', size(p,1)) ' particles are specified. Please expand the PartList.m'])

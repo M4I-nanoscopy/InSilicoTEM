@@ -27,7 +27,7 @@ b = ft(btot_i);
 mtffin = params2.cam.mtf;
 
 % DQE
-dqefin = params2.cam.dqe;     
+dqefin = params2.cam.dqe;
     
 if params2.cam.DQEflag == 1 
     nnps = mtffin^2/dqefin;
@@ -35,7 +35,7 @@ if params2.cam.DQEflag == 1
     Sn = b*mtffin./sqrt(nnps);
     btot_i2 = real(ift(Sn)); 
     ImPoission = dip_image(noise(double(btot_i2*params2.influx),'poisson',1)); %poisson noise
-    d2f = params2.cam.cf*ft(ImPoission)*sqrt(nnps);  
+    d2f = params2.cam.cf*ft(ImPoission)*sqrt(nnps); 
 else     % only MTF
     d1  = dip_image(noise(double(btot_i*params2.influx),'poisson',1)); %poisson noise
     d2f = params2.cam.cf*squeeze(ft(d1)).*mtffin;

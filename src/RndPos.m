@@ -1,4 +1,4 @@
-function [xt, yt, zt, numpart] = RndPos(params2,mindist,zrange)
+function [xt, yt, zt, numpart] = RndPos(params2,mindist,zrange,circle)
 %RndPos Assigns random translations of the particles within the volume.
 % Volume is splitted into the same size regions within which particle
 % positon is ranodmized
@@ -28,7 +28,7 @@ function [xt, yt, zt, numpart] = RndPos(params2,mindist,zrange)
 %
 %  Milos Vulovic
 
-N       = params2.proc.N;
+N       = params2.proc.N; % Size of image
 numpart = params2.proc.partNum;
 % szz     =ceil(params2.spec.thick/params2.acquis.pixsize)-mod(ceil(params2.spec.thick/params2.acquis.pixsize),2); 
 % mindist =0;
@@ -54,16 +54,27 @@ if numpart> floor((N/(mindist)))^2
     numpart = floor((N/(mindist)))^2;
 end
 
-K     = ceil(sqrt(numpart));
-side0 = N/K;
-  C=[];
-    for yy1=1:K;
-        for xx1=1:K;
-                coord=(mindist)/2+(side0-mindist)*rand(1,2);
-                C=[C; (xx1-1)*side0+coord(1,1), (yy1-1)*side0+coord(1,2)];
-        end
-    end  
-    
-xt = floor(C(1:numpart,1)-N/2);
-yt = floor(C(1:numpart,2)-N/2);
+C = [];
+C = circle;
+%C = Randomposition(N,mindist); % Center of particle % N = length(C)
+% numpart = length(C(:,1));
+xt = floor(C(1:numpart,1));
+yt = floor(C(1:numpart,2));
 zt = floor(zrange*rand(numpart,1).*(-1).^(round(rand(numpart,1))));
+
+
+
+% K     = ceil(sqrt(numpart));
+% side0 = N/K;
+%   C=[];
+%     for yy1=1:K;
+%         for xx1=1:K;
+%             
+%                 coord=(mindist)/2+(side0-mindist)*rand(1,2);
+%                 C=[C; (xx1-1)*side0+coord(1,1), (yy1-1)*side0+coord(1,2)];        
+%         end
+%     end  
+%     
+% xt = floor(C(1:numpart,1)-N/2);
+% yt = floor(C(1:numpart,2)-N/2);
+% zt = floor(zrange*rand(numpart,1).*(-1).^(round(rand(numpart,1))));

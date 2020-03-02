@@ -1,4 +1,4 @@
-function [VolPot, PosOrient] = generateFullVolume(PartPot,params2)
+function [VolPot, PosOrient] = generateFullVolume(PartPot,params2,circ,mindista)
 %generateFullVolume constructs the full specimen volume and places the particles with the volume
 % SYNOPSIS:
 % [VolPot] = generateFullVolume(PartPot,params2)
@@ -18,7 +18,8 @@ function [VolPot, PosOrient] = generateFullVolume(PartPot,params2)
 %  Lorentzweg 1                    2300 RC Leiden
 %  2628 CJ Delft
 %  The Netherlands
-% %  Milos Vulovic
+%
+%  Milos Vulovic
 
 N       = params2.proc.N;
 numpart = params2.proc.partNum;
@@ -26,18 +27,22 @@ szz     = ceil(params2.spec.thick/params2.acquis.pixsize) - mod(ceil(params2.spe
 
 tic
 if strcmp(params2.spec.source, 'pdb')
+    
+    
     % check the maximal thickness of the particles in case the input is pdb maps 
     mindist  = 0;
     mindistZ = 0;
+    dir0 = params2.proc.rawdir;
     if params2.spec.imagpot ~= 3
-        list = dir([pwd filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A.raw']);
+        list = dir([dir0 filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A.raw']);
     else
-        list = dir([pwd filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A_Volt' sprintf('%03d',params2.acquis.Voltage/1000) 'kV.raw']);
+        list = dir([dir0 filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A_Volt' sprintf('%03d',params2.acquis.Voltage/1000) 'kV.raw']);
     end
     numPart = min(size(list,1),numpart); 
     if ~numPart
         error('Cannot find particles to load');
     end
+    
     for ss=1:numPart
         fileName = list(ss).name;
         [tokens matchstring] = regexp(fileName,'a(\d+)_Nx(\d+)_Ny(\d+)_Nz(\d+)_Alp(\d+\.?\d*)_Bet(\d+\.?\d*)_Gam(\d+\.?\d*)_MF(\d+\.?\d*)_VoxSize(\d+\.?\d*)A','tokens','match');
@@ -49,6 +54,7 @@ if strcmp(params2.spec.source, 'pdb')
         mindistZ = max(mindistZ,nz);
     end
 
+    
     if mindistZ>szz
         fprintf(['The thickness is limited by the particle to ' sprintf('%3d nm\n', round(mindistZ*params2.acquis.pixsize*1e9))])
         zrange = 0;
@@ -56,11 +62,11 @@ if strcmp(params2.spec.source, 'pdb')
         zrange = szz/2-mindistZ/2;
     end
 
-    if params2.proc.geom % specific positions and orientations
+    if params2.proc.geom % specific positions
        [xt, yt, zt, alphaNo, betaNo, gammaNo] = PartList(params2); 
         xt=xt'; yt=yt'; zt=zt';
     else
-       [xt, yt, zt, numpart] = RndPos(params2,mindist, zrange);
+       [xt, yt, zt, numpart] = RndPos(params2,mindista, zrange,circ);
     end  
 
     transl = [xt, yt, zt];
@@ -89,7 +95,7 @@ if strcmp(params2.spec.source, 'pdb')
         else
             outputfilename = sprintf('%s_a%04d_Nx%i_Ny%i_Nz%i_Alp%3.1f_Bet%3.1f_Gam%3.1f_MF%3.1f_VoxSize%02.2fA_Volt%03dkV.raw',params2.spec.pdbin,tt, nx, ny, nz, Alp, Bet, Gam, MF,VoxS, params2.acquis.Voltage/1000);
         end
-        OutFileName = [pwd filesep 'Particles' filesep outputfilename];
+        OutFileName = [dir0 filesep 'Particles' filesep outputfilename];
         disp(OutFileName);
         fid = fopen(OutFileName, 'r');
         if params2.spec.imagpot~=3
@@ -107,17 +113,18 @@ if strcmp(params2.spec.source, 'pdb')
 
         xy0 = [N/2+xt(ss) N/2+yt(ss)]+1;
         xy1 = xy0 + [nx ny] - [1,1];
-
+        
         x   = xy0(1)-floor(nx/2):xy1(1)-floor(nx/2);
         y   = xy0(2)-floor(ny/2):xy1(2)-floor(ny/2);
         z   = round(szz/2-nz/2)+zt(ss) : round(szz/2+nz/2)-1+zt(ss); 
+            
+        %fprintf('Min Position xyz %5.2f %5.2f %5.2f\n',min(x),min(y),min(z));
+        %fprintf('Max Position xyz %5.2f %5.2f %5.2f\n',max(x),max(y),max(z));
+        
         volstruct(x,y,z) = atompot4;   
     end
-    if params2.spec.imagpot == 3
-       volstruct(volstruct==0) =  1i*min(atompotI(:)); %params2.spec.potenampl; %DL
-    end
-    VolPot = dip_image(permute(volstruct,[2 1 3]));
-    
+    VolPot = dip_image(permute(volstruct,[2 1 3]),'scomplex');  
+    clear volstruct;
 elseif strcmp(params2.spec.source, 'map')
     atompot4 = double(PartPot);
     [nx,ny,nz]=size(atompot4);
@@ -146,8 +153,7 @@ elseif strcmp(params2.spec.source, 'map')
         z   = round(szz/2-nzr/2) + zt(ss) : round(szz/2+nzr/2) - 1 + zt(ss); 
         volstruct(x,y,z) = atompot4rot;
     end
-    
-    VolPot = dip_image(permute(volstruct,[2 1 3]));  
+    VolPot = dip_image(permute(volstruct,[2 1 3]),'scomplex');  
     
 elseif strcmp(params2.spec.source, 'amorph')
     VolPot =  repmat(PartPot, [1 1 2]);

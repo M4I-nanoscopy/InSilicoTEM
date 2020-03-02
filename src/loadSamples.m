@@ -1,4 +1,4 @@
-function [PartPot, pout] = loadSamples(params2)
+function [PartPot, pout] = loadSamples(params2,rpdbsave,saved)
 %loadSamples Loads or calculates the interaction potential of the particles
 %depending on the required input params2.spec.source : 'pdb', 'map' or 'amorph'
 % SYNOPSIS:
@@ -23,13 +23,15 @@ function [PartPot, pout] = loadSamples(params2)
 
        
 pout = params2;
+dir0 = params2.proc.rawdir;
 
 if strcmp(params2.spec.source, 'pdb')   % generate the potential maps from pdb
     % first check if the particles are already generated
+    
     if params2.spec.imagpot~=3
-        list = dir([pwd filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A.raw']);
+        list = dir([dir0 filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A.raw']);
     else
-        list = dir([pwd filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A_Volt' sprintf('%03d',params2.acquis.Voltage/1000) 'kV.raw']);
+        list = dir([dir0 filesep 'Particles' filesep params2.spec.pdbin '*MF' sprintf('%3.1f',params2.spec.motblur) '_VoxSize' sprintf('%02.2f',params2.acquis.pixsize*1e10) '*A_Volt' sprintf('%03d',params2.acquis.Voltage/1000) 'kV.raw']);
     end
    params2.NumGenPart = size(list,1);
    if params2.proc.partNum <= params2.NumGenPart %&& ~params2.proc.geom 
@@ -49,7 +51,7 @@ if strcmp(params2.spec.source, 'pdb')   % generate the potential maps from pdb
         % calculate the atomic potential from the pdb with given
         % orientation. Save the particles into subfolder 'Particles' (wr=1)
       wr = 1;
-      [atompotF, numpart] = AtomPotRot(params2, alphad, betad, gammad, wr);
+      [atompotF, numpart] = AtomPotRot(params2, alphad, betad, gammad, wr,rpdbsave,saved);
       pout.proc.partNum = numpart + params2.NumGenPart;
       PartPot = atompotF;
    end
@@ -67,7 +69,7 @@ elseif strcmp(params2.spec.source, 'amorph') % the specimen is amorphous
     PartPot = real(ift(DMft*exp(-Btot*(rr(DMft,'freq')/params2.acquis.pixsize*1e-10).^2)));
     
 elseif strcmp(params2.spec.source, 'map')  % load already existing maps from folder 'pot'    
-    Potdir = [pwd filesep 'MAPs'];
+    Potdir = [dir0 filesep 'MAPs'];
     if ~exist(Potdir, 'dir')
         error('Could not find a suitable folder for potential files. Make a subfolder pot in the working directory or specify the directory in loadSamples.m'); %change from error to message 
     end
