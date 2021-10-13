@@ -24,7 +24,7 @@ Changes to the original code include:
 How to use InSilicoTEM simulator: testing updates
 -
 
-!! BEFORE USING THE SIMULATOR, MAKE SURE THAT A WORKING VERSION OF DIPimage (http://www.diplib.org/) FOR MATLAB IS INSTALLED ON THE COMPUTER !! 
+!! BEFORE USING THE SIMULATOR, MAKE SURE THAT A WORKING VERSION OF DIPimage 2.9 (>2.9 will not work!) (http://www.diplib.org/) FOR MATLAB IS INSTALLED ON THE COMPUTER !! 
 
 1) Add the PDB file to be imaged to the '/PDBs' folder
 2) Start MATLAB and open 'RunTEMsim.m'
