@@ -39,12 +39,12 @@ function [circData, circHandles] = Randomposition(N, mindist)
 
 %% set parameters
 % Frame size (arbitrary units): size of axes, centered at (0,0).
-fs = [floor(N-1*mindist), floor(N-1*mindist)]; %[width, height]
+fs = [floor(N + mindist), floor((N + mindist)/cos(tiltmax))]; %[width, height]
 
 % Circle sizes: Select the minimum and maximum radii and
 %   the number of unique radii.
 %   Radii are linearly spaced. ie: linspace(cs(1), cs(2), nSizes).
-cs = [floor(mindist*0.5), floor(mindist*0.5)]; %[smallest, largest] radius
+cs = [floor(mindist*0.6), floor(mindist*0.6)]; %[smallest, largest] radius
 nSizes = 1;    %number of circle sizes
 
 % max iterations: how many attempts should be made to find circle

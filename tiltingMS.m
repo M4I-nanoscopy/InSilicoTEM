@@ -22,17 +22,33 @@ function [TiltVol, n] = tiltingMS(InVol,tiltang, params2)
 %
 %  Milos Vulovic
 voxSz = params2.acquis.pixsize;
-
+N = params2.proc.N;
+InVol = dip_array(InVol);
 if tiltang ~= 0
-    TiltVol = rotation(InVol, tiltang, 2, 'bspline','zero');
-%fix bug :rotation.m function doesn't work with complex input volume. Rotate 2 times (real and imag) or ask Bernd? 
-    TiltVol(TiltVol < min(InVol)) = min(InVol);
-    TiltVol = cut(TiltVol, [size(InVol,1), size(InVol,2), size(TiltVol,3)]);
-else
+    sizeVol = size(InVol);
+    TiltVol = zeros(floor(sizeVol(1)*cos(abs(tiltang))+sizeVol(3)*sin(abs(tiltang))),sizeVol(2), ...
+        floor(sizeVol(1)*sin(abs(tiltang))+sizeVol(3)*cos(abs(tiltang))), 'single');
+    for ii = 1:sizeVol(1)
+            for kk = 1:sizeVol(3)
+                if tiltang > 0
+                    TiltVol(round(ii*cos(tiltang)+kk*sin(tiltang)),:,...
+                        round(-ii*sin(tiltang)+kk*cos(tiltang)+abs(-sizeVol(1)*sin(tiltang)+cos(tiltang)))+1) = InVol(ii,:,kk);
+                else 
+                    TiltVol(round(ii*cos(tiltang)+kk*sin(tiltang)+abs(cos(tiltang)+sizeVol(3)*sin(tiltang)))+1,:,...
+                        round(-ii*sin(tiltang)+kk*cos(tiltang))) = InVol(ii,:,kk);
+                end
+            end
+    end
+    clear InVol;
+    TiltVol = TiltVol(floor((size(TiltVol,1)+2-N)/2):floor((size(TiltVol,1)+N)/2),floor((size(TiltVol,2)+2-N)/2):floor((size(TiltVol,2)+N)/2),:);
+%     TiltVol = dip_image(TiltVol);
+else  
     TiltVol = InVol;
+    clear InVol;
+    TiltVol = TiltVol(floor((size(TiltVol,1)+2-N)/2):floor((size(TiltVol,1)+N)/2),floor((size(TiltVol,2)+2-N)/2):floor((size(TiltVol,2)+N)/2),:);
 end
 
-thicknessfull = voxSz*size(InVol,3)/cos(tiltang);
+thicknessfull = voxSz*size(TiltVol,3);
 % to ensure the integer number of slices
 n          = ceil(thicknessfull/params2.inter.msdz);
 if params2.inter.msdz>thicknessfull
@@ -47,7 +63,8 @@ else
 end
 %specimenblock   = extend(TiltVol, [size(InVol,1), size(InVol,1), round(thicknessfull/voxSz)],'symmetric','zero',1); 
 %TiltVol         = cut(TiltVol, [size(InVol,1), size(InVol,1), intslices]);
-TiltVol         = extend(TiltVol, [size(InVol,1), size(InVol,1), intslices],'symmetric',0,1);
+TiltVol         = padarray(TiltVol, [0, 0, double(intslices-thicknessfull/voxSz)],'post');
+TiltVol = dip_image(TiltVol);
 %TiltVol         = resample(TiltVol, [1 1 double(intslices/round(thicknessfull/voxSz))]); 
 sizepot         = size(TiltVol);
 if mod(intslices, sizepot(3))==1
@@ -55,10 +72,3 @@ if mod(intslices, sizepot(3))==1
 elseif mod(intslices, sizepot(3))==sizepot(3)
     TiltVol     = cut(TiltVol,    [sizepot(1), sizepot(2), sizepot(3)-1]);
 end
-
-
-
-     
-     
-
-        
