@@ -22,6 +22,10 @@ function [ctf] = simulateCTF(params2)
 %  Milos Vulovic
 % 
 q_true_pix = 1/(params2.acquis.pixsize*params2.proc.N);
+%for padding also padding for Aperture function
+% q          = newim([params2.proc.N*2 params2.proc.N*2],'dfloat');
+% qsym       = newim([params2.proc.N*2 params2.proc.N*2],'dfloat');
+
 q          = newim([params2.proc.N params2.proc.N],'dfloat');
 qsym       = newim([params2.proc.N params2.proc.N],'dfloat');
 df_run     = params2.acquis.df_run;
@@ -45,15 +49,15 @@ end
        bla = c.data;
        c = dip_image(bla);
     end
-    % damping envelopes:
     
+    % damping envelopes:
     % Kc is the envelope function due to chromatic aberration of the electron gun
     % Partial temporal coherence: Ec(u) = exp[-0.5*(pi*lamda*sigma)^2*u^4]
     % where sigma = Cc*sqrt[4*(deltaI/I)^2+(deltaE/voltage)^2+(deltaV/voltage)^2]
     H = params2.mic.C_c* params2.mic.deltaE/params2.acquis.Voltage;
     nomc = pi*params2.inter.lambda.*qsym.^2*H;
-    denomc = 4*sqrt(log(2));
-%    denomc = sqrt(2);
+%    denomc = 4*sqrt(log(2));
+    denomc = sqrt(2);
     Kc = exp(-(nomc/denomc).^2);
     if isfield(Kc, 'data')
        bla=Kc.data;
@@ -63,14 +67,17 @@ end
     % Ks is the envelope function due to different direction of the electron coming out from the gun
     % Partial spatial coherence: Es(u) = exp[-(pi*alpha/lamda)^2*(Cs*lamda^3*u^3+lamda*u)^2]
     nums = (pi*params2.mic.Cs*params2.inter.lambda^2.*qsym.^3-pi*df_run.*q).^2*params2.mic.a_i^2;   
-    Ks = exp(-nums/log(2));
-%    Ks = exp(-nums);
+%    Ks = exp(-nums/log(2));
+    Ks = exp(-nums);
     if isfield(Ks, 'data')
        bla=Ks.data;
        Ks=dip_image(bla);
     end
     K = Kc.*Ks;
     % aperture function
+    
+%     A = dip_image(ones(params2.proc.N*2,params2.proc.N*2),'complex'); %padding
+
     A = dip_image(ones(params2.proc.N,params2.proc.N),'complex');
     qmax= 2*pi*params2.mic.diam_obj/(params2.inter.lambda*params2.mic.foc);
     %qmax=10*1e10;
@@ -80,18 +87,26 @@ end
     
     % optional Spiral phase plate
     if params2.mic.SPPflag
-%         central_blocked_PP = ones(params2.proc.N,params2.proc.N);
-%         central_blocked_PP([(params2.proc.N/2-params2.proc.N/8):(params2.proc.N/2+1+params2.proc.N/8)] ...
-%             , [(params2.proc.N/2-params2.proc.N/8):(params2.proc.N/2+1+params2.proc.N/8)])= 0;
-%         Image_com=dip_image(central_blocked_PP,'complex');
 
+        % For padding
+%         Image_com=dip_image(ones(params2.proc.N*2,params2.proc.N*2),'complex');
         Image_com=dip_image(ones(params2.proc.N,params2.proc.N),'complex');
-        
+        Image_size = size(Image_com);
         % For spiral phase plate
         x_ic = xx(Image_com);
         y_ic = yy(Image_com);
         phi_ic = atan2(y_ic,x_ic);   
         SPhPlate = exp(1i*params2.mic.SPP_Phase*phi_ic).*Image_com; 
+        
+        % For chopstick SPP
+        % SPP diameter 50 um, chopsticks inner part 450 nm from the center,
+        % outside center 1.05 um from the center. Chopstick 600 nm.
+%         q_chopstickout  = 2*pi*1.5e-6/(params2.inter.lambda*params2.mic.foc);
+%         q_chopstickin   = 2*pi*0.5e-6/(params2.inter.lambda*params2.mic.foc);
+%         q_chopstickout_pix = floor(q_chopstickout/q_true_pix);
+%         q_chopstickin_pix  = floor(q_chopstickin/q_true_pix);
+%         SPhPlate(0:Image_size(1)/2, (Image_size(1)/2-q_chopstickout_pix):(Image_size(1)/2-q_chopstickin_pix)) = 0;
+%         SPhPlate(0:Image_size(1)/2,(Image_size(1)/2+1+q_chopstickin_pix):(Image_size(1)/2+1+q_chopstickout_pix)) = 0;
         
         SPhPlate(q < params2.mic.SPP_qcuton)= 1; %block the central beam = 0.1
         SPhPlate(qsym > qmax)= 0;
@@ -99,7 +114,6 @@ end
         SPhPlateRe = gaussf(real(SPhPlate),1);
         SPhPlate = SPhPlateRe+1i*SPhPlateIm;
         ctf = SPhPlate*ctf;
-%       ctf = ctf*CTF_Envelope;
     end
      
 % Optional Zernike Phase Plate 
@@ -135,7 +149,7 @@ if params2.disp.ctf
 
         [T, R] = meshgrid(phi_ctf_range, r_ctf_range);
 
-        ctf_polar = griddata(phi_ctf, rad_ctf, real(ctf_array), T, R);
+        ctf_polar = griddata(phi_ctf, rad_ctf, imag(ctf_array), T, R);
     
         plot([1:params2.proc.N/2]*q_true_pix/1e9, ctf_polar(:,params2.proc.N/2));
         hold on
@@ -157,19 +171,19 @@ end
 
 
 %     Original code ctf plot: radialmean           
-
-ctf1d = radialmean(imag(ctf));
-    if params2.disp.ctf || params2.mic.SPPflag == 1
-        plot([1:length(ctf1d)]*q_true_pix/1e9, ctf1d);
-        hold on
-        plot([1:length(ctf1d)]*q_true_pix/1e9, radialmean(K), 'g', [1:length(ctf1d)]*q_true_pix/1e9, radialmean(-K), 'g');
-        ylabel('Contrast transfer function');
-        xlabel(' Frequency [nm^-1]');
-        %xlim( [0 4]);
-        ylim( [-1 1]);
-        title ('1D CTF')
-        hold on
-        plot([1:length(ctf1d)]*q_true_pix/1e9, 0, 'r');
-        hold off
-    end
+% 
+% ctf1d = radialmean(imag(ctf));
+%     if params2.disp.ctf || params2.mic.SPPflag == 1
+%         plot([1:length(ctf1d)]*q_true_pix/1e9, ctf1d);
+%         hold on
+%         plot([1:length(ctf1d)]*q_true_pix/1e9, radialmean(K), 'g', [1:length(ctf1d)]*q_true_pix/1e9, radialmean(-K), 'g');
+%         ylabel('Contrast transfer function');
+%         xlabel(' Frequency [nm^-1]');
+%         %xlim( [0 4]);
+%         ylim( [-1 1]);
+%         title ('1D CTF')
+%         hold on
+%         plot([1:length(ctf1d)]*q_true_pix/1e9, 0, 'r');
+%         hold off
+%     end
 end

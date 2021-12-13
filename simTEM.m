@@ -37,8 +37,8 @@ elseif strcmp(params2.seriesout,'dose')
 else 
     Nseries=1;
 end
-series        = newim(params2.proc.N,params2.proc.N,Nseries); 
-btot_i        = newim(params2.proc.N,params2.proc.N,Nseries);
+ 
+
 extprojstack  = newim(params2.proc.N,params2.proc.N,Nseries, 'complex');
 
 poten0 = InputVol; clear InputVol;
@@ -46,9 +46,6 @@ thickness = voxSz*size(poten0,3);
 
 switch params2.inter.type
     case{'pa+wpoa', 'pa', 'wpoa', 'tpga'}
-        if params2.proc.cores>1
-           parpool(params2.proc.cores);
-        end
         poten0 = permute(poten0,[1 3 2]);
     % calculate the projected potential (neglects the thickness of the specimen)
     switch params2.inter.type
@@ -58,12 +55,10 @@ switch params2.inter.type
         case {'wpoa','tpga'}
             poten0_stack = FreqDomRadon_Ewald_2d(poten0,params2.acquis.tilt, params2);
     end
-    if params2.proc.cores>1
-        ppc = gcp;
-        delete(ppc);
-    end
+    clear poten0;
+
     poten0_stack = permute(poten0_stack,[1 3 2]);
-    poten0_stack = cut(poten0_stack,[size(InputVol,1) size(InputVol,2) size(poten0_stack,3)]);
+    poten0_stack = cut(poten0_stack,[params2.proc.N, params2.proc.N, size(poten0_stack,3)]);
     
     % imaginary part of the potential (amplitude contrast)
     if params2.spec.imagpot == 1
@@ -74,7 +69,7 @@ switch params2.inter.type
     else
        poten_stack = poten0_stack;
     end
-    
+    clear poten0_stack;
     % transmission function
     if strcmp(params2.inter.type, 'pa')|| strcmp(params2.inter.type, 'tpga') 
         psi_exit   = exp(1i*params2.inter.sig_transfer*poten_stack*voxSz);
@@ -82,8 +77,9 @@ switch params2.inter.type
     elseif strcmp(params2.inter.type, 'pa+wpoa')|| strcmp(params2.inter.type, 'wpoa')
         psi_exit   = 1+1i*params2.inter.sig_transfer*poten_stack*voxSz;
     end
+    clear poten_stack;
     extprojstack = psi_exit;
-    
+
 % if multislice then the exit wave is calculated separately for each tilt angle.  
 case 'ms' 
     psi_exit = newim(params2.proc.N, params2.proc.N, nTiltAngles, 'dcomplex');
@@ -92,11 +88,11 @@ case 'ms'
         
         tiltang = params2.acquis.tilt(ll);
         fprintf('Simulate tilt angle %3.0f\n', tiltang*180/pi)
-        disp(' ')
-        disp('Generating Tilt...')
+%         disp(' ')
+%         disp('Generating Tilt...')
         tic
         [potenext, n] = tiltingMS(poten0,tiltang, params2);
-        clear poten0
+%         clear poten0
         toc
         disp(' ')
         sizepot = size(potenext);
@@ -117,70 +113,33 @@ case 'ms'
             error('This option for the params.spec.potenampl is not valid. Please choose between 0-3');
         end
         
-        clear potenext
-        
-        
-        
+%         clear potenext
+ 
         %Fourier domain
         xwm = (voxSz)*Nm;%pixelsize for multislice * size sample
         q_true_pix_m = 1/xwm;
         q_m = rr([Nm Nm])*q_true_pix_m; % frequencies in Fourier domain
-
         % propagator function Fresnel Propagation 
-        dzprop = thicknessfull/n;
-        
+        dzprop = thicknessfull/n;       
         % MULTISLICE
         psi_slice = newim(Nm,Nm,'scomplex')+1;
-
         % Phase grating & Multislice at  same time
-        disp('-.-.-.-.-.-.-.-.- STARTING MULTISLICE -.-.-.-.-.-.-.-.-...')
-        disp(' ')
         tic
         for ii = 0:n-1
-            vai = tic;
-                disp('Loading potential...')
-                
-                
-                disp(['SLICE ' char(num2str(ii+1)) '/' char(num2str(n))])
-                disp(' ')
-                disp('     Phase grating...')
-                tic
                 % Projected potential in a slice 
                 t = mean(potenfull(:,:,ii*(sizepot(3)/n):(ii+1)*(sizepot(3)/n)-1),[],3); 
-                toc
-
-                disp(' ')
-                disp('     Transmission function...')
-                tic
                 % transmission functions for a single slice as we go through
                 psi_t = exp(1i*params2.inter.sig_transfer*t*dzprop); 
-                toc
-
-                disp(' ')
-                disp('     Fresnel propagator...')
-                tic
                 % Fresnel propagator
                 P = exp(-1i*pi*params2.inter.lambda*(q_m.^2)*dzprop); % Fresnel propagator
-                toc
-
-                disp(' ')
-                disp('     Wave propagation...')
-                tic
                 % Exit wave from current slice
                 psi_slice = ift(ft(psi_slice*squeeze(psi_t(:,:,0)))*P);
-                toc
-            disp(' ')
-            disp(['FINISHED SLICE ' char(num2str(ii+1)) '/' char(num2str(n))])
-            toc(vai)
         end
         PsiExit = psi_slice;
         psi_exit(:,:,ll-1) = PsiExit;
-        disp(' ')
         disp('-.-.-.-.-.-.-.-.- FINISHED MULTISLICE -.-.-.-.-.-.-.-.-')
         toc
-        disp(' ')
-
-        
+     
         if strcmp(params2.spec.source, 'amorph')
             thicknessfull = params2.spec.thick/cos(tiltang);
             psi_exit(:,:,ll-1) = psi_exit(:,:,ll-1)*exp(-params2.inter.sig_transfer*params2.spec.potenampl*thicknessfull);
@@ -201,50 +160,78 @@ end
 
 %% ---------------------------------- CTF with df, ast, envelopes and optionally phase plate
 
-psi_exit=double(psi_exit);   
-btot_i=double(btot_i);
-for jjj= 1:Nseries
-    if strcmp(params2.seriesout,'defocus')
-        params2.acquis.df_run=params2.acquis.df(jjj);
-    else
-        params2.acquis.df_run=params2.acquis.df(1);
-    end
-    if ~mod(jjj,5)||~mod(jjj,Nseries)
-        fprintf(['Calculate the CTF for the ' params2.seriesout sprintf(' series. Image number %3d of %3d\n',  jjj, Nseries)]);
-    end
+switch params2.inter.type
+    
+case {'ms', 'wpoa'}
+        psi_exit=   double(psi_exit);
+%         btot_i  =   newim(params2.proc.N*2,params2.proc.N*2,Nseries);
+        btot_i  =   newim(params2.proc.N,params2.proc.N,Nseries);
+        btot_i  =   double(btot_i);
+        for jjj= 1:Nseries
+            if strcmp(params2.seriesout,'defocus')
+                params2.acquis.df_run=params2.acquis.df(jjj);
+            else
+                params2.acquis.df_run=params2.acquis.df(1);
+            end
+            if ~mod(jjj,5)||~mod(jjj,Nseries)
+                fprintf(['Calculate the CTF for the ' params2.seriesout sprintf(' series. Image number %3d of %3d\n',  jjj, Nseries)]);
+            end
   
-  [ctf] = simulateCTF(params2);
-  if params2.disp.ctf 
-        ctf_out(:,:,jjj)=double(ctf);
-  end
-  
-% For dark field image  
-%   central_block = ones(params2.proc.N, params2.proc.N);
-%   central_block(((params2.proc.N/2-31):(params2.proc.N/2+32)), ((params2.proc.N/2-31):(params2.proc.N/2+32))) = 0.1 ;  % block the central direct beam 
-%   central_block((params2.proc.N/2+1), (params2.proc.N/2+1)) = 0.025 ;
-%   
-%   Image_spp=dip_image(ones(params2.proc.N,params2.proc.N),'complex');
-%         x_ic = xx(Image_com);         
-%         y_ic = yy(Image_com);
-%         phi_ic = atan2(y_ic,x_ic);   
-%         SPhPlate = exp(1i*params2.mic.PP_Phase*phi_ic).*Image_com; % For spiral phase plate
-%         SPhPlate = exp(1i*params2.mic.PP_Phase)*Image_spp;
-%         SPhPlateIm = gaussf(imag(SPhPlate),1);
-%         SPhPlateRe = gaussf(real(SPhPlate),1);
-%         SPhPlate = SPhPlateRe+1i*SPhPlateIm;
-  
-% btot = central_block*SPhPlate*dip_fouriertransform(dip_image(psi_exit(:,:,jjj)),'forward',[1 1 ]); %0]);  % for dark field image, no CTF
-  
-  
-  btot = ctf*dip_fouriertransform(dip_image(psi_exit(:,:,jjj)),'forward',[1 1 ]); %0]);
-  btot_i(:,:,jjj) = double(abs(dip_fouriertransform(btot,'inverse',[1 1])).^2); % intensity in the image without camera influence              
-end
-noiseless_tilt_series = dip_image(btot_i); 
-
-
+            [ctf] = simulateCTF(params2);
+            if params2.disp.ctf 
+                ctf_out(:,:,jjj)=double(ctf);
+            end
             
-%%  --------------------------------- Camera influence          
+%             shift_cord = (-5:1:5);
+%             shift_x = ones(11,1)*shift_cord;
+%             shift_y = shift_cord'*ones(1,11);
+%             for kkk = 1:1:numel(shift_x)
+%                 start_col = (size(ctf,1)-params2.proc.N)/2+1;
+%                 end_col = (size(ctf,1)+params2.proc.N)/2;
+%                 ctf_1 = ctf((start_col+shift_x(kkk)*27):(end_col+shift_x(kkk)*27),(start_col+shift_y(kkk)*27):(end_col+shift_y(kkk)*27));
+%             end
+
+%             psi_exit_pad = padarray(psi_exit(:,:,jjj),[256,256],mean(psi_exit(:,:,jjj),'all'),'both');
+%             btot = ctf*dip_fouriertransform(dip_image(psi_exit_pad,'forward',[1 1 ]); %0]);
+            btot = ctf*dip_fouriertransform(dip_image(psi_exit(:,:,jjj)),'forward',[1 1 ]); %0]);
+            btot_i(:,:,jjj) = double(abs(dip_fouriertransform(btot,'inverse',[1 1])).^2); % intensity in the image without camera influence              
+        end
+ 
+case {'pa+wpoa', 'pa', 'tpga'}
+        btot_i  =   newim(params2.proc.N*2,params2.proc.N*2,Nseries);
+        btot_i  =   double(btot_i);
+%         poten0_stack = double(poten0_stack);
+        psi_exit = double(psi_exit);
+        tiltang = params2.acquis.tilt;
+        for k = 1:size(psi_exit,3)
+%         psi_exit_ctf = CTF_Tilt_2d_projection(dip_image(psi_exit(:,:,k)),tiltang(k),params2);
+        
+        psi_exit_pad = padarray(psi_exit(:,:,k)-mean(psi_exit(:,:,k),'all'),[256,256],0,'both');
+        
+        psi_exit_ctf = CTF_Regular_2d_projection(dip_image(psi_exit_pad),params2);
+        
+        btot_i(:,:,k) = double(psi_exit_ctf);
+        end
+        btot_i  =   dip_image(btot_i);
+end
+
+        if Nseries > 1
+            noiseless_tilt_series = dip_image(cut(btot_i,[params2.proc.N params2.proc.N Nseries])); 
+        else
+            noiseless_tilt_series = dip_image(btot_i);
+        end
+       
+clear psi_exit btot_i;
+    if params2.proc.cores>1
+        ppc = gcp;
+        delete(ppc);
+    end
+    
+    
+%% --------------------------------- Camera influence
+  
 noiseless_tilt_series=double(noiseless_tilt_series);
+series = newim(params2.proc.N,params2.proc.N,Nseries);
 series = double(series);
 for iii= 1:Nseries
     if strcmp(params2.seriesout,'dose')

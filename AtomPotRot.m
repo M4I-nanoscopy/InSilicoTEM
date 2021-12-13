@@ -1,4 +1,4 @@
-function [outpot,numpartExtra,rpdb] = AtomPotRot(params2, alphad, betad, gammad, wr,rpdbsave,saved,process)
+function [outpot,numpartExtra,rpdb] = AtomPotRot(params2, pdb_ii, numpart_ii,  NumGenPart_ii, numpart_tot, alphad, betad, gammad, wr,process)
 %AtomPotRot Calculates the interaction potential of the particles. Inspired
 % by the pdb.c of TEMSimulator (H. Rullg�rd et al, Journal of Microscopy 243 (3) (2011)) 
 % SYNOPSIS:
@@ -6,7 +6,7 @@ function [outpot,numpartExtra,rpdb] = AtomPotRot(params2, alphad, betad, gammad,
 %
 % PARAMETERS:
 %   params2: structure containing various input paramters (e.g. input pdb file, voxel size)
-%   alphad : the first Euler angles (in degrees)
+%   alphad : the first Euler angles (in degrees)"2fha";"3dkt";"EspB_hepta";"mmb500_824"
 %    betad : the second Euler angles (in degrees)
 %   gammad : the third Euler angles (in degrees)
 %       wr : writing out the potential map in folder 'Particles'
@@ -17,32 +17,27 @@ function [outpot,numpartExtra,rpdb] = AtomPotRot(params2, alphad, betad, gammad,
 
 
 
-pdbin      = params2.spec.pdbin;
+pdbin      = pdb_ii;
 voxel_size = params2.spec.voxsize;
 Vwat       = params2.spec.Vwat;
 pixsz      = params2.acquis.pixsize*1e10;
 alpha = deg2rad(alphad); beta = deg2rad(betad); gamma = deg2rad(gammad);
 dir0 = params2.proc.rawdir;
 
+
 % Read the PDB file
 wrPdb = sprintf('%s.pdb',pdbin);
 %wrMrc = sprintf('%s.mrc',pdbin);
 path2pdb = [pwd filesep 'PDBs' filesep wrPdb];
 if ~exist(path2pdb)
-    getpdb(pdbin,'TOFILE',path2pdb);
-end
-
-if ~saved
-    tic
     disp('Loading PDB file...')
+    getpdb(sprintf('%s',pdbin),'TOFILE',path2pdb);
     rpdb = pdbread(path2pdb);
-    toc
 else
     disp('Using pre-saved PDB file...')
-    rpdb = rpdbsave;
+    rpdb = pdbread(path2pdb);
 end
 
-assignin('base','rpdbsave',rpdb);
 
 
 oversam  = 1; % oversampling of the potential 4 means map with voxel size of 0.25 A.
@@ -65,7 +60,15 @@ for j = 1:1:size(rpdb.Model,2)
             xcoord    = [xcoord rpdb.Model.Atom(1,ii).X];
             ycoord    = [ycoord rpdb.Model.Atom(1,ii).Y];
             zcoord    = [zcoord rpdb.Model.Atom(1,ii).Z];
-            eltype{ii}= [rpdb.Model.Atom(1,ii).element];
+            if isfield(rpdb.Model.Atom, 'AtomName')
+                eltype{ii}= [rpdb.Model.Atom(1,ii).AtomName];
+            elseif isfield(rpdb.Model.Atom, 'element')
+                eltype{ii}= [rpdb.Model.Atom(1,ii).element]
+            end
+            % For PDB file from MD simulation
+            TF = find(isletter(eltype{ii}), 1);
+            eltype{ii} = eltype{TF};
+            
             tempfact  = [tempfact; rpdb.Model.Atom(1,ii).tempFactor];
             occfact =[occfact; rpdb.Model.Atom(1,ii).occupancy];
             [~,~,m(ii)] = parametrizeScFac(eltype(ii));
@@ -120,15 +123,17 @@ szx0 = abs(max(xc0) - min(xc0)) + 2*extrapix;
 szy0 = abs(max(yc0) - min(yc0)) + 2*extrapix;
 mindist = max(szx0, szy0)*1/params2.acquis.pixsize*1e-10;
 
-numpartExtra = params2.proc.partNum - params2.NumGenPart;
-% limit the number of particles to the specified field of view 
-if params2.proc.partNum> floor((params2.proc.N/(mindist)))^2
-  fprintf('The maximum number of particles within this field of view is limited to %d\n', floor((params2.proc.N/(mindist)))^2)
-  numpartExtra = floor((params2.proc.N/(mindist)))^2 - params2.NumGenPart;
-end
+numpartExtra = numpart_ii - NumGenPart_ii;
+
+% % Limit the number of particles to the specified field of view When particles are listed in 2D
+% if params2.proc.partNum> floor((params2.proc.N/(mindist)))^2
+%   fprintf('The maximum number of particles within this field of view is limited to %d\n', floor((params2.proc.N/(mindist)))^2)
+%   numpartExtra = floor((params2.proc.N/(mindist)))^2 - params2.NumGenPart;
+%   numpartExtra = params2.proc.partNum - params2.NumGenPart
+% end
 
 outpot=[];
-for ss = 1:numpartExtra  
+parfor ss = 1:numpartExtra
     kkkk = tic;
     RAl    = [cos(alpha(ss)) sin(alpha(ss)); -sin(alpha(ss)) cos(alpha(ss))];
     RBet   = [cos(beta(ss)) sin(beta(ss)); -sin(beta(ss)) cos(beta(ss))];
@@ -153,7 +158,7 @@ for ss = 1:numpartExtra
     C   = 4*sqrt(pi)*ph.h^2/(ph.el*ph.me)*1e20; % =2132.8 A^2*V
     
     atompot = zeros(round(sz));
-    
+    tic
     fprintf('Calculating potential for %6d atoms of particle %3d\n ...',length(eltype),ss )
     for jj = 1:round(length(eltype))
 %         if mod(jj, 5000)==0
@@ -240,14 +245,16 @@ for ss = 1:numpartExtra
   
     szPot = size(double(atPotBlRspm));
      if  params2.spec.imagpot == 3
-       outputfilename = sprintf('%s_a%04d_Nx%i_Ny%i_Nz%i_Alp%3.1f_Bet%3.1f_Gam%3.1f_MF%3.1f_VoxSize%02.2fA_Volt%03dkV.raw',params2.spec.pdbin,ss+params2.NumGenPart,szPot, alphad(ss), betad(ss), gammad(ss),params2.spec.motblur, pixsz, params2.acquis.Voltage/1000);
+       outputfilename = sprintf('%s_a%04d_Nx%i_Ny%i_Nz%i_Alp%3.1f_Bet%3.1f_Gam%3.1f_MF%3.1f_VoxSize%02.2fA_Volt%03dkV.raw', ...
+           pdbin,ss+NumGenPart_ii+numpart_tot,szPot, alphad(ss), betad(ss), gammad(ss),params2.spec.motblur, pixsz, params2.acquis.Voltage/1000);
     else
-       outputfilename = sprintf('%s_a%04d_Nx%i_Ny%i_Nz%i_Alp%3.1f_Bet%3.1f_Gam%3.1f_MF%3.1f_VoxSize%02.2fA.raw',params2.spec.pdbin,ss+params2.NumGenPart,szPot, alphad(ss), betad(ss), gammad(ss),params2.spec.motblur, pixsz);
+       outputfilename = sprintf('%s_a%04d_Nx%i_Ny%i_Nz%i_Alp%3.1f_Bet%3.1f_Gam%3.1f_MF%3.1f_VoxSize%02.2fA.raw', ...
+           pdbin,ss+NumGenPart_ii+numpart_tot,szPot, alphad(ss), betad(ss), gammad(ss),params2.spec.motblur, pixsz);
     end
    
-    if ~exist([dir0 filesep 'Particles'])
-        mkdir([dir0 filesep],'Particles')
-    end
+%     if ~exist([dir0 filesep 'Particles'])
+%         mkdir([dir0 filesep],'Particles')
+%     end
     
     OutFileName = [dir0 filesep 'Particles' filesep outputfilename];
 
