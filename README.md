@@ -46,7 +46,7 @@ How the InSilicoTEM simulator works:
 -
 Here only a brief description of the simulator is presented.
 
-For a the full theoretical treatment please refer to OUR PAPER (when we have the DOI we will update it) as well as Vulovic et al.,2013 (https://doi.org/10.1016/j.jsb.2013.05.008).
+For a the full theoretical treatment please refer to OUR PAPER (https://doi.org/10.1021/acs.jcim.9b01176) as well as Vulovic et al.,2013 (https://doi.org/10.1016/j.jsb.2013.05.008).
 
 The functioning of InSilicoTEM can be broken down into 4 steps:
 
